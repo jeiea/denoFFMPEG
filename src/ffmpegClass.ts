@@ -523,15 +523,15 @@ export class FfmpegClass {
   }
 
   private async *__getProgress(): AsyncGenerator<Progress> {
-    let i = 1;
     let stderrStart = true;
     let timeS = 0;
     let totalFrames = 0;
-    let encFound = 0;
     let currentFrame = 0;
     let currentFPS = 0;
     for await (const line of readLines(this.#Process.stderr!)) {
-      if (line.includes("encoder")) encFound++;
+      if (line.startsWith("frame=")) {
+        stderrStart = false;
+      }
       if (stderrStart === true) {
         this.#stderr.push(line);
         if (line.includes("Duration: ")) {
@@ -568,11 +568,6 @@ export class FfmpegClass {
             );
           }
         }
-
-        if (line.includes("encoder") && encFound > 2) {
-          i = 0;
-          stderrStart = false;
-        }
       } else {
         if (line === "progress=end") break;
         if (line.includes("frame=")) {
@@ -582,7 +577,7 @@ export class FfmpegClass {
           currentFPS = parseFloat(line.replaceAll("fps=", "").trim());
           if (currentFPS === 0) currentFPS = currentFrame;
         }
-        if (i == 12) {
+        if (line.startsWith("progress=")) {
           const progressOBJ: Progress = {
             ETA: new Date(
               Date.now() + (totalFrames - currentFrame) / currentFPS * 1000,
@@ -604,10 +599,8 @@ export class FfmpegClass {
               `Progress yield is invalid because one of the following values is NaN\ntotalFrames:${totalFrames}\ncurrentFrame:${currentFrame}\ncurrentFPS:${currentFPS}`,
             );
           }
-          i = 0;
         }
       }
-      i++;
     }
     const finalIter: Progress = {
       ETA: new Date(),
